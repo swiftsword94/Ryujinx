@@ -56,9 +56,9 @@ namespace Ryujinx.Audio.Backends.SDL2
 
         public static bool IsSupported => IsSupportedInternal();
 
-        private static bool IsSupportedInternal()
+        private static bool IsSupportedInternal(Direction direction = Direction.Output)
         {
-            uint device = OpenStream(SampleFormat.PcmInt16, Constants.TargetSampleRate, Constants.ChannelCountMax, Constants.TargetSampleCount, null);
+            uint device = OpenStream(SampleFormat.PcmInt16, direction, Constants.TargetSampleRate, Constants.ChannelCountMax, Constants.TargetSampleCount, null);
 
             if (device != 0)
             {
@@ -90,12 +90,12 @@ namespace Ryujinx.Audio.Backends.SDL2
                 sampleRate = Constants.TargetSampleRate;
             }
 
-            if (direction != Direction.Output)
-            {
-                throw new NotImplementedException("Input direction is currently not implemented on SDL2 backend!");
-            }
+            //if (direction != Direction.Output)
+            //{
+            //    throw new NotImplementedException("Input direction is currently not implemented on SDL2 backend!");
+            //}
 
-            SDL2HardwareDeviceSession session = new(this, memoryManager, sampleFormat, sampleRate, channelCount);
+            SDL2HardwareDeviceSession session = new(this, memoryManager, sampleFormat, sampleRate, channelCount, direction);
 
             _sessions.TryAdd(session, 0);
 
@@ -130,13 +130,20 @@ namespace Ryujinx.Audio.Backends.SDL2
             };
         }
 
-        internal static uint OpenStream(SampleFormat requestedSampleFormat, uint requestedSampleRate, uint requestedChannelCount, uint sampleCount, SDL_AudioCallback callback)
+        internal static uint OpenStream(SampleFormat requestedSampleFormat, Direction direction, uint requestedSampleRate, uint requestedChannelCount, uint sampleCount, SDL_AudioCallback callback)
         {
             SDL_AudioSpec desired = GetSDL2Spec(requestedSampleFormat, requestedSampleRate, requestedChannelCount, sampleCount);
 
             desired.callback = callback;
 
-            uint device = SDL_OpenAudioDevice(IntPtr.Zero, 0, ref desired, out SDL_AudioSpec got, 0);
+            int expectedDirection = direction switch
+            {
+                Direction.Input => 1,
+                Direction.Output => 0,
+                _ => throw new ArgumentException($"Unknown Direction {direction}"),
+            };
+
+            uint device = SDL_OpenAudioDevice(IntPtr.Zero, expectedDirection, ref desired, out SDL_AudioSpec got, 0);
 
             if (device == 0)
             {
@@ -202,7 +209,7 @@ namespace Ryujinx.Audio.Backends.SDL2
         public bool SupportsDirection(Direction direction)
         {
             // TODO: add direction input when supported.
-            return direction == Direction.Output;
+            return direction == Direction.Output || direction == Direction.Input;
         }
     }
 }
